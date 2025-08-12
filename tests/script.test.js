@@ -1,130 +1,194 @@
 import script from '../src/script.mjs';
 
-describe('Job Template Script', () => {
+describe('HashiCorp Boundary Add User to Group Script', () => {
   const mockContext = {
     env: {
       ENVIRONMENT: 'test'
     },
     secrets: {
-      API_KEY: 'test-api-key-123456'
+      BOUNDARY_USERNAME: 'testuser',
+      BOUNDARY_PASSWORD: 'testpass',
+      BOUNDARY_BASE_URL: 'https://boundary.example.com'
     },
-    outputs: {},
-    partial_results: {},
-    current_step: 'start'
+    outputs: {}
   };
 
+  beforeEach(() => {
+    // Mock console to avoid noise in tests
+    global.console.log = () => {};
+    global.console.error = () => {};
+  });
+
   describe('invoke handler', () => {
-    test('should execute successfully with minimal params', async () => {
+    test('should throw error for missing groupId', async () => {
       const params = {
-        target: 'test-user@example.com',
-        action: 'create'
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890'
       };
 
-      const result = await script.invoke(params, mockContext);
-
-      expect(result.status).toBe('success');
-      expect(result.target).toBe('test-user@example.com');
-      expect(result.action).toBe('create');
-      expect(result.status).toBeDefined();
-      expect(result.processed_at).toBeDefined();
-      expect(result.options_processed).toBe(0);
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing groupId parameter');
     });
 
-    test('should handle dry run mode', async () => {
+    test('should throw error for missing userId', async () => {
       const params = {
-        target: 'test-user@example.com',
-        action: 'delete',
-        dry_run: true
+        groupId: 'g_1234567890',
+        authMethodId: 'ampw_1234567890'
       };
 
-      const result = await script.invoke(params, mockContext);
-
-      expect(result.status).toBe('dry_run_completed');
-      expect(result.target).toBe('test-user@example.com');
-      expect(result.action).toBe('delete');
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing userId parameter');
     });
 
-    test('should process options array', async () => {
+    test('should throw error for missing authMethodId', async () => {
       const params = {
-        target: 'test-group',
-        action: 'update',
-        options: ['force', 'notify', 'audit']
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890'
       };
 
-      const result = await script.invoke(params, mockContext);
-
-      expect(result.status).toBe('success');
-      expect(result.target).toBe('test-group');
-      expect(result.options_processed).toBe(3);
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing authMethodId parameter');
     });
 
-    test('should handle context with previous job outputs', async () => {
-      const contextWithOutputs = {
+    test('should throw error for missing BOUNDARY_USERNAME', async () => {
+      const params = {
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890'
+      };
+
+      const contextWithoutUsername = {
         ...mockContext,
-        outputs: {
-          'create-user': {
-            user_id: '12345',
-            created_at: '2024-01-15T10:30:00Z'
-          },
-          'assign-groups': {
-            groups_assigned: 3
-          }
+        secrets: {
+          BOUNDARY_PASSWORD: 'testpass',
+          BOUNDARY_BASE_URL: 'https://boundary.example.com'
         }
       };
 
+      await expect(script.invoke(params, contextWithoutUsername))
+        .rejects.toThrow('Missing required secrets: BOUNDARY_USERNAME and BOUNDARY_PASSWORD');
+    });
+
+    test('should throw error for missing BOUNDARY_PASSWORD', async () => {
       const params = {
-        target: 'user-12345',
-        action: 'finalize'
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890'
       };
 
-      const result = await script.invoke(params, contextWithOutputs);
+      const contextWithoutPassword = {
+        ...mockContext,
+        secrets: {
+          BOUNDARY_USERNAME: 'testuser',
+          BOUNDARY_BASE_URL: 'https://boundary.example.com'
+        }
+      };
 
-      expect(result.status).toBe('success');
-      expect(result.target).toBe('user-12345');
-      expect(result.status).toBeDefined();
+      await expect(script.invoke(params, contextWithoutPassword))
+        .rejects.toThrow('Missing required secrets: BOUNDARY_USERNAME and BOUNDARY_PASSWORD');
     });
+
+    test('should throw error for missing BOUNDARY_BASE_URL', async () => {
+      const params = {
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890'
+      };
+
+      const contextWithoutBaseUrl = {
+        ...mockContext,
+        secrets: {
+          BOUNDARY_USERNAME: 'testuser',
+          BOUNDARY_PASSWORD: 'testpass'
+        }
+      };
+
+      await expect(script.invoke(params, contextWithoutBaseUrl))
+        .rejects.toThrow('Missing required secret: BOUNDARY_BASE_URL');
+    });
+
+    test('should validate empty groupId', async () => {
+      const params = {
+        groupId: '   ',
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890'
+      };
+
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing groupId parameter');
+    });
+
+    test('should validate empty userId', async () => {
+      const params = {
+        groupId: 'g_1234567890',
+        userId: '   ',
+        authMethodId: 'ampw_1234567890'
+      };
+
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing userId parameter');
+    });
+
+    test('should validate empty authMethodId', async () => {
+      const params = {
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890',
+        authMethodId: '   '
+      };
+
+      await expect(script.invoke(params, mockContext))
+        .rejects.toThrow('Invalid or missing authMethodId parameter');
+    });
+
+    // Note: Testing actual Boundary API calls would require mocking fetch
+    // or integration tests with real Boundary credentials
   });
 
   describe('error handler', () => {
-    test('should throw error by default', async () => {
+    test('should re-throw error for framework to handle', async () => {
       const params = {
-        target: 'test-user@example.com',
-        action: 'create',
-        error: {
-          message: 'Something went wrong',
-          code: 'ERROR_CODE'
-        }
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890',
+        error: new Error('Network timeout')
       };
 
-      await expect(script.error(params, mockContext)).rejects.toThrow('Unable to recover from error: Something went wrong');
+      await expect(script.error(params, mockContext))
+        .rejects.toThrow('Network timeout');
     });
   });
 
   describe('halt handler', () => {
     test('should handle graceful shutdown', async () => {
       const params = {
-        target: 'test-user@example.com',
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890',
         reason: 'timeout'
       };
 
       const result = await script.halt(params, mockContext);
 
-      expect(result.status).toBe('halted');
-      expect(result.target).toBe('test-user@example.com');
+      expect(result.groupId).toBe('g_1234567890');
+      expect(result.userId).toBe('u_1234567890');
+      expect(result.authMethodId).toBe('ampw_1234567890');
       expect(result.reason).toBe('timeout');
-      expect(result.halted_at).toBeDefined();
+      expect(result.haltedAt).toBeDefined();
+      expect(result.cleanupCompleted).toBe(true);
     });
 
-    test('should handle halt without target', async () => {
+    test('should handle halt with missing params', async () => {
       const params = {
         reason: 'system_shutdown'
       };
 
       const result = await script.halt(params, mockContext);
 
-      expect(result.status).toBe('halted');
-      expect(result.target).toBe('unknown');
+      expect(result.groupId).toBe('unknown');
+      expect(result.userId).toBe('unknown');
+      expect(result.authMethodId).toBe('unknown');
       expect(result.reason).toBe('system_shutdown');
+      expect(result.cleanupCompleted).toBe(true);
     });
   });
 });

@@ -12,6 +12,12 @@ class FatalError extends Error {
   }
 }
 
+/**
+ * @param {string} context.secrets.BASIC_USERNAME - Username for HashiCorp Boundary authentication
+ * @param {string} context.secrets.BASIC_PASSWORD - Password for HashiCorp Boundary authentication
+ * @param {string} context.environment.BOUNDARY_ADDRESS - HashiCorp Boundary API base URL
+ */
+
 function validateInputs(params) {
   if (!params.groupId || typeof params.groupId !== 'string' || params.groupId.trim() === '') {
     throw new FatalError('Invalid or missing groupId parameter');
@@ -167,22 +173,22 @@ export default {
 
       console.log(`Processing group ID: ${groupId}, user ID: ${userId}`);
 
-      if (!context.secrets?.BOUNDARY_USERNAME || !context.secrets?.BOUNDARY_PASSWORD) {
-        throw new FatalError('Missing required secrets: BOUNDARY_USERNAME and BOUNDARY_PASSWORD');
+      if (!context.secrets?.BASIC_USERNAME || !context.secrets?.BASIC_PASSWORD) {
+        throw new FatalError('Missing required secrets: BASIC_USERNAME and BASIC_PASSWORD');
       }
 
-      if (!context.secrets?.BOUNDARY_BASE_URL) {
-        throw new FatalError('Missing required secret: BOUNDARY_BASE_URL');
+      if (!context.environment?.BOUNDARY_ADDRESS) {
+        throw new FatalError('Missing required environment variable: BOUNDARY_ADDRESS');
       }
 
-      const baseUrl = context.secrets.BOUNDARY_BASE_URL.replace(/\/$/, ''); // Remove trailing slash
+      const baseUrl = context.environment.BOUNDARY_ADDRESS.replace(/\/$/, ''); // Remove trailing slash
 
       // Step 1: Authenticate to get a token
       console.log(`Authenticating with auth method: ${authMethodId}`);
       const token = await authenticate(
         authMethodId,
-        context.secrets.BOUNDARY_USERNAME,
-        context.secrets.BOUNDARY_PASSWORD,
+        context.secrets.BASIC_USERNAME,
+        context.secrets.BASIC_PASSWORD,
         baseUrl
       );
 

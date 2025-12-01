@@ -1,183 +1,214 @@
-# SGNL Job Template
+# HashiCorp Boundary Add User to Group Action
 
-This repository provides a template for creating JavaScript jobs for the SGNL's CAEP Hub.
+Add a user to a group in HashiCorp Boundary for access management and permissions control.
 
-## Quick Start
+## Overview
 
-1. **Use this template** to create a new repository
-2. **Clone** your new repository locally
-3. **Install dependencies**: `npm install`  
-4. **Modify** `src/script.mjs` with your job logic
-5. **Update** `metadata.yaml` with your job schema
-6. **Test locally**: `npm run dev`
-7. **Run tests**: `npm test`
-8. **Build**: `npm run build`
-9. **Release**: Create a git tag and push
+This SGNL action integrates with HashiCorp Boundary to add users to groups. When executed, the specified user will be added to the target group, granting them the access permissions associated with that group.
+
+## Prerequisites
+
+- HashiCorp Boundary instance
+- Basic authentication credentials (username and password)
+- Boundary API access
+- Group ID where the user should be added
+- User ID to add to the group
+- Auth method ID for authentication
+
+## Configuration
+
+### Required Secrets
+
+| Secret | Description |
+|--------|-------------|
+| `BASIC_USERNAME` | Username for HashiCorp Boundary authentication |
+| `BASIC_PASSWORD` | Password for HashiCorp Boundary authentication |
+
+### Required Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ADDRESS` | HashiCorp Boundary API base URL | `https://boundary.example.com` |
+
+### Input Parameters
+
+| Parameter | Type | Required | Description | Example |
+|-----------|------|----------|-------------|---------|
+| `groupId` | string | Yes | The Boundary group ID to add user to | `g_1234567890` |
+| `userId` | string | Yes | The Boundary user ID to add to group | `u_0987654321` |
+| `authMethodId` | string | Yes | The Boundary auth method ID for authentication | `ampw_1234567890` |
+
+### Output Structure
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `groupId` | string | The group ID that was processed |
+| `userId` | string | The user ID that was added |
+| `authMethodId` | string | The auth method ID used for authentication |
+| `userAdded` | boolean | Whether the user was successfully added to group |
+| `addedAt` | datetime | When the operation completed (ISO 8601) |
+
+## Usage Example
+
+### Job Request
+
+```json
+{
+  "id": "add-user-to-group-001",
+  "type": "nodejs-22",
+  "script": {
+    "repository": "github.com/sgnl-actions/hashicorp-boundary-add-user-to-group",
+    "version": "v1.0.0",
+    "type": "nodejs"
+  },
+  "script_inputs": {
+    "groupId": "g_1234567890",
+    "userId": "u_0987654321",
+    "authMethodId": "ampw_1234567890"
+  },
+  "environment": {
+    "ADDRESS": "https://boundary.example.com",
+    "LOG_LEVEL": "info"
+  }
+}
+```
+
+### Successful Response
+
+```json
+{
+  "groupId": "g_1234567890",
+  "userId": "u_0987654321",
+  "authMethodId": "ampw_1234567890",
+  "userAdded": true,
+  "addedAt": "2024-01-15T10:30:00Z"
+}
+```
+
+## How It Works
+
+The action performs the following steps:
+
+1. **Authenticate**: Uses the provided auth method ID and credentials to obtain an authentication token from Boundary
+2. **Get Group Details**: Retrieves the current group information including its version number (required for updates)
+3. **Add User to Group**: Adds the specified user to the group using the version number to ensure consistency
+
+## Error Handling
+
+The action includes comprehensive error handling with retryable and fatal error types:
+
+### Retryable Errors (Framework will retry)
+- **429 Rate Limit**: Boundary API rate limit exceeded
+- **5xx Server Errors**: Boundary API server errors
+
+### Fatal Errors (Will not retry)
+- **401 Unauthorized**: Invalid username or password
+- **403 Forbidden**: Insufficient permissions
+- **404 Not Found**: Group or user not found
+- **409 Conflict**: User may already be in group or version mismatch
+- **Missing Parameters**: Invalid or missing required parameters
 
 ## Development
 
 ### Local Testing
 
 ```bash
-# Run the script locally with mock data
-npm run dev
+# Install dependencies
+npm install
 
-# Run unit tests
+# Run tests
 npm test
 
-# Watch mode for development
+# Test locally with mock data
+npm run dev
+
+# Build for production
+npm run build
+```
+
+### Running Tests
+
+The action includes comprehensive unit tests covering:
+- Input validation (groupId, userId, authMethodId)
+- Secret validation (BASIC_USERNAME, BASIC_PASSWORD)
+- Environment variable validation (ADDRESS)
+- Empty parameter validation
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
 npm run test:watch
-npm run build:watch
 
-# Validate metadata
-npm run validate
-
-# Lint code
-npm run lint
-npm run lint:fix
+# Check test coverage
+npm run test:coverage
 ```
 
-### File Structure
+## Security Considerations
 
-- `src/script.mjs` - Main job implementation (⚠️ **Edit this!**)
-- `metadata.yaml` - Job schema and configuration (⚠️ **Edit this!**)
-- `tests/script.test.js` - Unit tests
-- `dist/index.js` - Built script (generated by `npm run build`)
-- `scripts/` - Development utilities
+- **Credential Protection**: Never log or expose authentication credentials
+- **Token Management**: Authentication tokens are ephemeral and obtained per-request
+- **Audit Logging**: All operations are logged with timestamps
+- **Input Validation**: All parameters are validated before API calls
+- **Rate Limiting**: Includes delays between operations to avoid rate limits
 
-## Implementation Checklist
+## HashiCorp Boundary API Reference
 
-### Required Changes
+This action uses the following HashiCorp Boundary API endpoints:
+- [Authenticate](https://developer.hashicorp.com/boundary/api-docs/authmethods#authenticate)
+- [Read Group](https://developer.hashicorp.com/boundary/api-docs/groups#read)
+- [Add Members to Group](https://developer.hashicorp.com/boundary/api-docs/groups#add-members)
 
-- [ ] **Update job name** and description in `metadata.yaml`
-- [ ] **Define input parameters** in `metadata.yaml` 
-- [ ] **Define output schema** in `metadata.yaml`
-- [ ] **Implement `invoke` handler** in `src/script.mjs`
-- [ ] **Update test mock data** in `tests/script.test.js`
-- [ ] **Update README** with job-specific documentation
+## Troubleshooting
 
-### Optional Enhancements
+### Common Issues
 
-- [ ] Implement `error` handler for error recovery
-- [ ] Implement `halt` handler for graceful shutdown
-- [ ] Add additional test cases
-- [ ] Customize development runner in `scripts/dev-runner.js`
+1. **"Invalid or missing groupId parameter"**
+   - Ensure the `groupId` parameter is provided and is a non-empty string
+   - Verify the group ID exists in your Boundary instance
 
-## Event Handlers
+2. **"Invalid or missing userId parameter"**
+   - Ensure the `userId` parameter is provided and is a non-empty string
+   - Verify the user ID exists in your Boundary instance
 
-Your script must export a default object with these handlers:
+3. **"Invalid or missing authMethodId parameter"**
+   - Ensure the `authMethodId` parameter is provided and is a non-empty string
+   - Verify the auth method ID is correct for your Boundary instance
 
-### `invoke` (Required)
-Main execution logic for your job.
+4. **"Missing required secrets: BASIC_USERNAME and BASIC_PASSWORD"**
+   - Ensure both `BASIC_USERNAME` and `BASIC_PASSWORD` secrets are configured
+   - Verify the credentials have the correct permissions
 
-```javascript
-invoke: async (params, context) => {
-  // Your job logic here
-  return {
-    status: 'success',
-    // ... other outputs
-  };
-}
-```
+5. **"No URL specified. Provide address parameter or ADDRESS environment variable"**
+   - Ensure the `ADDRESS` environment variable is set to your Boundary API URL
+   - Example: `https://boundary.example.com`
 
-### `error` (Optional)
-Error recovery logic when `invoke` fails.
+6. **Authentication Errors (401)**
+   - Verify your username and password are correct
+   - Check that the auth method ID is valid
 
-```javascript
-error: async (params, context) => {
-  // params.error contains the original error
-  // Attempt recovery or cleanup
-  return {
-    status: 'recovered',
-    // ... recovery results
-  };
-}
-```
+7. **Group or User Not Found (404)**
+   - Verify the group ID and user ID are correct
+   - Check that both resources exist in Boundary
 
-### `halt` (Optional)  
-Graceful shutdown when job is cancelled or times out.
+8. **Conflict Error (409)**
+   - The user may already be a member of the group
+   - There may be a version mismatch - the action will handle retries automatically
 
-```javascript
-halt: async (params, context) => {
-  // params.reason contains halt reason
-  // Clean up resources, save partial progress
-  return {
-    status: 'halted',
-    cleanup_completed: true
-  };
-}
-```
+## Version History
 
-## Context Object
+### v1.0.0
+- Initial release
+- Support for adding users to groups via HashiCorp Boundary API
+- Basic authentication support
+- Integration with @sgnl-actions/utils package
+- Comprehensive error handling with retryable/fatal error types
 
-The `context` parameter provides access to:
+## License
 
-```javascript
-{
-  env: {
-    ENVIRONMENT: "production",
-    // ... other environment variables
-  },
-  secrets: {
-    API_KEY: "secret-key",
-    // ... other secrets
-  },
-  outputs: {
-    "previous-job-step": {
-      // ... outputs from previous jobs in workflow
-    }
-  }
-}
-```
-
-## Testing
-
-### Unit Tests
-
-Tests are in `tests/script.test.js`. Update the mock data to match your job's inputs:
-
-```javascript
-const params = {
-  target: 'your-target',
-  action: 'your-action'
-  // ... other inputs
-};
-```
-
-### Local Development
-
-Use `npm run dev` to test your script locally with mock data. Update `scripts/dev-runner.js` to customize the test parameters.
-
-## Deployment
-
-1. **Ensure tests pass**: `npm test`
-2. **Validate metadata**: `npm run validate`  
-3. **Build distribution**: `npm run build`
-4. **Create git tag**: `git tag v1.0.0`
-5. **Push to GitHub**: `git push origin v1.0.0`
-
-## Usage in SGNL
-
-Reference your job in a JobSpec:
-
-```json
-{
-  "id": "my-job-123",
-  "type": "nodejs-20",
-  "script": {
-    "repository": "github.com/your-org/your-job-repo",
-    "version": "v1.0.0",
-    "type": "nodejs"
-  },
-  "script_inputs": {
-    "target": "user@example.com",
-    "action": "create"
-  },
-  "environment": {
-    "ENVIRONMENT": "production"
-  }
-}
-```
+MIT
 
 ## Support
 
+For issues or questions, please contact SGNL Engineering or create an issue in this repository.

@@ -1,3 +1,5 @@
+import { getBaseUrl } from '@sgnl-actions/utils';
+
 class RetryableError extends Error {
   constructor(message) {
     super(message);
@@ -157,6 +159,20 @@ async function addUserToGroup(groupId, userId, version, token, baseUrl) {
 }
 
 export default {
+  /**
+   * Main execution handler - adds a user to a HashiCorp Boundary group
+   * @param {Object} params - Job input parameters
+   * @param {string} params.groupId - The Boundary group ID to add the user to
+   * @param {string} params.userId - The Boundary user ID to add
+   * @param {string} params.authMethodId - The Boundary auth method ID for authentication
+   *
+   * @param {Object} context - Execution context with secrets and environment
+   * @param {string} context.secrets.BASIC_USERNAME - Username for HashiCorp Boundary authentication
+   * @param {string} context.secrets.BASIC_PASSWORD - Password for HashiCorp Boundary authentication
+   * @param {string} context.environment.ADDRESS - Default HashiCorp Boundary API base URL
+   *
+   * @returns {Object} Job results
+   */
   invoke: async (params, context) => {
     console.log('Starting HashiCorp Boundary Add User to Group action');
 
@@ -167,22 +183,19 @@ export default {
 
       console.log(`Processing group ID: ${groupId}, user ID: ${userId}`);
 
-      if (!context.secrets?.BOUNDARY_USERNAME || !context.secrets?.BOUNDARY_PASSWORD) {
-        throw new FatalError('Missing required secrets: BOUNDARY_USERNAME and BOUNDARY_PASSWORD');
+      if (!context.secrets?.BASIC_USERNAME || !context.secrets?.BASIC_PASSWORD) {
+        throw new FatalError('Missing required secrets: BASIC_USERNAME and BASIC_PASSWORD');
       }
 
-      if (!context.secrets?.BOUNDARY_BASE_URL) {
-        throw new FatalError('Missing required secret: BOUNDARY_BASE_URL');
-      }
-
-      const baseUrl = context.secrets.BOUNDARY_BASE_URL.replace(/\/$/, ''); // Remove trailing slash
+      // Get base URL using utility function
+      const baseUrl = getBaseUrl(params, context);
 
       // Step 1: Authenticate to get a token
       console.log(`Authenticating with auth method: ${authMethodId}`);
       const token = await authenticate(
         authMethodId,
-        context.secrets.BOUNDARY_USERNAME,
-        context.secrets.BOUNDARY_PASSWORD,
+        context.secrets.BASIC_USERNAME,
+        context.secrets.BASIC_PASSWORD,
         baseUrl
       );
 
@@ -222,6 +235,14 @@ export default {
     }
   },
 
+  /**
+   * Error recovery handler - framework handles retries by default
+   *
+   * @param {Object} params - Original params plus error information
+   * @param {Object} context - Execution context
+   *
+   * @returns {Object} Recovery results
+   */
   error: async (params, _context) => {
     const { error } = params;
     console.error(`Error handler invoked: ${error?.message}`);
@@ -230,6 +251,14 @@ export default {
     throw error;
   },
 
+  /**
+   * Graceful shutdown handler - cleanup when job is halted
+   *
+   * @param {Object} params - Original params plus halt reason
+   * @param {Object} context - Execution context
+   *
+   * @returns {Object} Cleanup results
+   */
   halt: async (params, _context) => {
     const { reason, groupId, userId, authMethodId } = params;
     console.log(`Job is being halted (${reason})`);

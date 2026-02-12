@@ -1,4 +1,5 @@
 import script from '../src/script.mjs';
+import { SGNL_USER_AGENT } from '@sgnl-actions/utils';
 
 describe('HashiCorp Boundary Add User to Group Script', () => {
   const mockContext = {
@@ -136,6 +137,49 @@ describe('HashiCorp Boundary Add User to Group Script', () => {
 
       await expect(script.invoke(params, mockContext))
         .rejects.toThrow('Invalid or missing authMethodId parameter');
+    });
+
+    test('should include User-Agent header in all API calls', async () => {
+      const params = {
+        groupId: 'g_1234567890',
+        userId: 'u_1234567890',
+        authMethodId: 'ampw_1234567890'
+      };
+
+      const capturedRequests = [];
+      global.fetch = async (url, options) => {
+        capturedRequests.push({ url, options });
+
+        if (url.includes(':authenticate')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ attributes: { token: 'mock-token' } })
+          };
+        }
+
+        if (url.includes('/v1/groups/') && options.method === 'GET') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ version: 1 })
+          };
+        }
+
+        // Add member call
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({})
+        };
+      };
+
+      await script.invoke(params, mockContext);
+
+      expect(capturedRequests.length).toBe(3);
+      for (const req of capturedRequests) {
+        expect(req.options.headers['User-Agent']).toBe(SGNL_USER_AGENT);
+      }
     });
 
     // Note: Testing actual Boundary API calls would require mocking fetch

@@ -52,9 +52,20 @@ outputs:
 
 # Required secrets (configured at deployment time)
 secrets:
-  - BOUNDARY_USERNAME
-  - BOUNDARY_PASSWORD
-  - BOUNDARY_BASE_URL
+  BASIC_USERNAME:
+    type: text
+    description: Boundary auth method login name
+    required: true
+  BASIC_PASSWORD:
+    type: text
+    description: Boundary auth method password
+    required: true
+
+environment:
+  ADDRESS:
+    type: text
+    description: Boundary controller URL
+    required: false
 
 # Runtime configuration
 runtime:

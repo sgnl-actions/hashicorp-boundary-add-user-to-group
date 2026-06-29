@@ -32,6 +32,9 @@ inputs:
     type: text
     description: Boundary controller URL (overrides environment ADDRESS)
     required: false
+    validation:
+      min: 1
+      max: 500
 
 # Expected output structure
 outputs:

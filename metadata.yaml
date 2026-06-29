@@ -28,6 +28,11 @@ inputs:
       min: 1
       max: 200
 
+  address:
+    type: text
+    description: Boundary controller URL (overrides environment ADDRESS)
+    required: false
+
 # Expected output structure
 outputs:
   groupId:
